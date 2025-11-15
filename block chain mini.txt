@@ -1,0 +1,77 @@
+from flask import Flask, request, jsonify
+import datetime
+import hashlib
+import json
+
+app = Flask(_name_)
+
+# --- Blockchain Class ---
+class Blockchain:
+    def _init_(self):
+        self.chain = []
+        self.create_block(data='Genesis Block', access_list=['admin'])
+
+    def create_block(self, data, access_list):
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': str(datetime.datetime.now()),
+            'data': data,
+            'access_list': access_list,
+            'previous_hash': self.get_last_block()['hash'] if self.chain else '0'
+        }
+        block['hash'] = self.hash(block)
+        self.chain.append(block)
+        return block
+
+    def get_last_block(self):
+        return self.chain[-1] if self.chain else {'hash': '0'}
+
+    def hash(self, block):
+        encoded_block = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(encoded_block).hexdigest()
+
+    def is_valid_access(self, user, block_index):
+        if block_index > len(self.chain) or block_index <= 0:
+            return False
+        return user in self.chain[block_index - 1]['access_list']
+
+    def get_chain(self):
+        return self.chain
+
+# Create blockchain instance
+blockchain = Blockchain()
+
+# --- API Routes ---
+@app.route('/')
+def index():
+    return "Welcome to Blockchain API!"
+
+@app.route('/full_chain', methods=['GET'])
+def full_chain():
+    return jsonify({'chain': blockchain.get_chain()}), 200
+
+@app.route('/mine_block', methods=['POST'])
+def mine_block():
+    data = request.json.get('data')
+    access_list = request.json.get('access_list')
+
+    if not data or not access_list:
+        return jsonify({'message': 'Missing data or access_list'}), 400
+
+    block = blockchain.create_block(data=data, access_list=access_list)
+    return jsonify({'message': 'Block mined successfully!', 'block': block}), 201
+
+@app.route('/check_access', methods=['POST'])
+def check_access():
+    user = request.json.get('user')
+    block_index = request.json.get('block_index')
+
+    if not user or not block_index:
+        return jsonify({'message': 'Missing user or block_index'}), 400
+
+    has_access = blockchain.is_valid_access(user, block_index)
+    return jsonify({'user': user, 'block_index': block_index, 'access_granted': has_access}), 200
+
+# --- Run App ---
+if _name_ == '_main_':
+    app.run(debug=True)
